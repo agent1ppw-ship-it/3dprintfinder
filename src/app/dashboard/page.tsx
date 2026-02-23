@@ -195,38 +195,6 @@ function DashboardContent() {
                   key={result.id}
                   className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden hover:border-zinc-700 transition group"
                 >
-                  <div className="aspect-square relative bg-zinc-800">
-                    {result.imageUrl ? (
-                      <img 
-                        src={result.imageUrl} 
-                        alt={result.title}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-zinc-600">
-                        No Image
-                      </div>
-                    )}
-                    <div className="absolute top-2 left-2">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        result.platform === "ebay" 
-                          ? "bg-blue-600 text-white" 
-                          : "bg-orange-500 text-white"
-                      }`}>
-                        {result.platform.toUpperCase()}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => toggleWatchList(result.id)}
-                      className={`absolute top-2 right-2 p-2 rounded-full transition ${
-                        watchList.includes(result.id)
-                          ? "bg-[#22c55e] text-black"
-                          : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"
-                      }`}
-                    >
-                      <Heart className={`w-4 h-4 ${watchList.includes(result.id) ? "fill-current" : ""}`} />
-                    </button>
-                  </div>
                   <div className="p-3">
                     <h3 className="font-medium text-sm line-clamp-2 mb-2 group-hover:text-[#22c55e] transition">
                       {result.title}
