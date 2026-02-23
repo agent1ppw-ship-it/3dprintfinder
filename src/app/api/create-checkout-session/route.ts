@@ -1,7 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "");
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,7 +6,6 @@ export async function POST(request: NextRequest) {
 
     // Check if Stripe is configured
     if (!process.env.STRIPE_SECRET_KEY) {
-      console.error("Stripe secret key not configured");
       return NextResponse.json(
         { error: "Payment system not configured. Please contact support." },
         { status: 503 }
@@ -20,6 +16,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No price selected" }, { status: 400 });
     }
 
+    // Dynamic import Stripe to avoid build-time initialization issues
+    const Stripe = (await import("stripe")).default;
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
     // Price IDs - replace with your actual Stripe price IDs
