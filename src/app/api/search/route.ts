@@ -19,65 +19,108 @@ function isValidTitle(title: string): boolean {
   return true;
 }
 
-// Amazon scraping
+// Amazon scraping - try multiple approaches
 async function searchAmazon(query: string): Promise<SearchItem[]> {
   const results: SearchItem[] = [];
+  const seen = new Set<string>();
   
-  try {
-    const res = await fetch(
-      `https://www.amazon.com/s?k=${encodeURIComponent(query + " 3D printed")}`,
-      {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          'Accept': 'text/html',
-        },
-        signal: AbortSignal.timeout(10000)
-      }
-    );
+  // Try both with and without "3D printed"
+  const searchQueries = [
+    query,
+    query + " 3D printed"
+  ];
+  
+  for (const searchQuery of searchQueries) {
+    if (results.length >= 20) break;
     
-    if (res.ok) {
-      const html = await res.text();
-      const seen = new Set<string>();
+    try {
+      const res = await fetch(
+        `https://www.amazon.com/s?k=${encodeURIComponent(searchQuery)}`,
+        {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml',
+          },
+          signal: AbortSignal.timeout(8000)
+        }
+      );
       
-      // Extract product titles and images
-      const pattern = /<img[^>]*data-a-dynamic-image[^>]*src="(https:\/\/m\.media-amazon\.com[^"]+)"[^>]*alt="([^"]{10,100})"[^>]*>/gi;
-      let match;
-      
-      while ((match = pattern.exec(html)) !== null && results.length < 15) {
-        const image = match[1].replace(/\\u0026/g, '&');
-        const title = match[2].replace(/&quot;/g, '"').trim();
+      if (res.ok) {
+        const html = await res.text();
         
-        if (title.length > 15 && isValidTitle(title)) {
-          const key = title.substring(0, 20).toLowerCase();
-          if (!seen.has(key)) {
-            seen.add(key);
-            results.push({
-              id: `amazon-${results.length}`,
-              title: title.substring(0, 100),
-              price: 0,
-              currency: 'USD',
-              imageUrl: image.replace('._AC_US40_', '._AC_US200_'),
-              itemUrl: `https://www.amazon.com/s?k=${encodeURIComponent(title)}`,
-              platform: 'amazon',
-            });
+        // Try to extract title + price from JSON-LD structured data
+        const jsonLdPattern = /<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi;
+        let match;
+        
+        while ((match = jsonLdPattern.exec(html)) !== null && results.length < 20) {
+          try {
+            const json = JSON.parse(match[1]);
+            const items = Array.isArray(json) ? json : (json['@graph'] || [json]);
+            
+            for (const item of items) {
+              if (item['@type'] === 'Product' && item.name) {
+                let price = 0;
+                if (item.offers) {
+                  const offers = Array.isArray(item.offers) ? item.offers[0] : item.offers;
+                  if (offers.price) price = parseFloat(String(offers.price).replace(/[^0-9.]/g, ''));
+                }
+                
+                const title = item.name.substring(0, 100);
+                const key = title.substring(0, 20).toLowerCase();
+                
+                if (title.length > 10 && !seen.has(key) && isValidTitle(title)) {
+                  seen.add(key);
+                  results.push({
+                    id: `amazon-${results.length}`,
+                    title,
+                    price: price || 0,
+                    currency: 'USD',
+                    imageUrl: Array.isArray(item.image) ? item.image[0] : item.image,
+                    itemUrl: `https://www.amazon.com/s?k=${encodeURIComponent(title)}`,
+                    platform: 'amazon',
+                  });
+                }
+              }
+            }
+          } catch (e) {}
+        }
+        
+        // Also try regular image pattern
+        const imgPattern = /<img[^>]*data-a-dynamic-image[^>]*src="([^"]+)"[^>]*alt="([^"]{10,100})"[^>]*>/gi;
+        while ((match = imgPattern.exec(html)) !== null && results.length < 20) {
+          const image = match[1].replace(/\\u0026/g, '&');
+          const title = match[2].replace(/&quot;/g, '"').replace(/&amp;/g, '&').trim();
+          
+          if (title.length > 15 && isValidTitle(title)) {
+            const key = title.substring(0, 20).toLowerCase();
+            if (!seen.has(key)) {
+              seen.add(key);
+              results.push({
+                id: `amazon-${results.length}`,
+                title: title.substring(0, 100),
+                price: 0,
+                currency: 'USD',
+                imageUrl: image.replace('._AC_US40_', '._AC_US200_'),
+                itemUrl: `https://www.amazon.com/s?k=${encodeURIComponent(title)}`,
+                platform: 'amazon',
+              });
+            }
           }
         }
       }
+    } catch (e) {
+      console.error('Amazon scrape error:', e);
     }
-  } catch (e) {
-    console.error('Amazon scrape error:', e);
   }
   
-  return results;
+  return results.slice(0, 20);
 }
 
-// eBay Browse API
+// eBay API
 async function searchEbay(query: string): Promise<SearchItem[]> {
   const appId = process.env.EBAY_APP_ID;
   
-  if (!appId) {
-    return generateMockResults("ebay", query);
-  }
+  if (!appId) return generateMockResults("ebay", query);
 
   try {
     const tokenRes = await fetch('https://api.ebay.com/identity/v1/oauth2/token', {
@@ -92,9 +135,7 @@ async function searchEbay(query: string): Promise<SearchItem[]> {
     const tokenData = await tokenRes.json();
     const accessToken = tokenData.access_token;
 
-    if (!accessToken) {
-      return generateMockResults("ebay", query);
-    }
+    if (!accessToken) return generateMockResults("ebay", query);
 
     const searchRes = await fetch(
       `https://api.ebay.com/browse/v1/item_summary/search?q=${encodeURIComponent(query + " 3D printed")}&limit=20`,
@@ -118,7 +159,7 @@ async function searchEbay(query: string): Promise<SearchItem[]> {
       platform: 'ebay' as const,
     }));
   } catch (error) {
-    console.error('eBay API error:', error);
+    console.error('eBay error:', error);
     return generateMockResults("ebay", query);
   }
 }
@@ -127,9 +168,7 @@ async function searchEbay(query: string): Promise<SearchItem[]> {
 async function searchEtsy(query: string): Promise<SearchItem[]> {
   const apiKey = process.env.ETSY_API_KEY;
   
-  if (!apiKey) {
-    return generateMockResults("etsy", query);
-  }
+  if (!apiKey) return generateMockResults("etsy", query);
 
   try {
     const res = await fetch(
@@ -154,33 +193,17 @@ async function searchEtsy(query: string): Promise<SearchItem[]> {
       platform: 'etsy' as const,
     }));
   } catch (error) {
-    console.error('Etsy API error:', error);
+    console.error('Etsy error:', error);
     return generateMockResults("etsy", query);
   }
 }
 
-// Mock data
+// Mock fallback
 function generateMockResults(platform: "ebay" | "etsy", query: string): SearchItem[] {
-  const mockProducts = [
-    { title: `3D Printed ${query} RC Car Body Shell`, price: 45.99 },
-    { title: `Custom 3D Printed ${query} Model`, price: 29.99 },
-    { title: `Handcrafted 3D Printed ${query}`, price: 35.00 },
-    { title: `3D Printed ${query} Accessory Set`, price: 24.99 },
-    { title: `Unique ${query} - 3D Printed to Order`, price: 55.00 },
-    { title: `Customizable 3D Printed ${query}`, price: 19.99 },
+  return [
+    { id: `${platform}-1`, title: `3D Printed ${query} - Custom Design`, price: 29.99, currency: 'USD', itemUrl: `https://www.${platform}.com/search?q=${query}`, platform },
+    { id: `${platform}-2`, title: `Handmade ${query} - 3D Printed`, price: 34.99, currency: 'USD', itemUrl: `https://www.${platform}.com/search?q=${query}`, platform },
   ];
-
-  return mockProducts.map((product, index) => ({
-    id: `${platform}-${index}`,
-    title: product.title,
-    price: product.price,
-    currency: 'USD',
-    imageUrl: `https://picsum.photos/seed/${platform}${index}/400/400`,
-    itemUrl: platform === 'ebay' 
-      ? `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(query)}`
-      : `https://www.etsy.com/search?q=${encodeURIComponent(query)}`,
-    platform,
-  }));
 }
 
 export async function GET(request: NextRequest) {
@@ -195,7 +218,7 @@ export async function GET(request: NextRequest) {
   try {
     const results: SearchItem[] = [];
     
-    // Always include Amazon
+    // Always include Amazon (with real scraping)
     const amazonResults = await searchAmazon(query);
     results.push(...amazonResults);
     
