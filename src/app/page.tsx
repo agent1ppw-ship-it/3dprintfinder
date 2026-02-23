@@ -11,7 +11,7 @@ export default function Home() {
             <div className="w-8 h-8 bg-[#22c55e] rounded-lg flex items-center justify-center">
               <span className="text-black font-bold text-lg">3</span>
             </div>
-            <span className="font-bold text-xl">PrintFinder</span>
+            <span className="font-bold text-xl">PrintCrawler</span>
           </div>
           <nav className="flex items-center gap-6">
             <Link href="#features" className="text-zinc-400 hover:text-white transition">Features</Link>
@@ -184,10 +184,10 @@ export default function Home() {
             <div className="w-6 h-6 bg-[#22c55e] rounded flex items-center justify-center">
               <span className="text-black font-bold text-sm">3</span>
             </div>
-            <span className="font-medium">PrintFinder</span>
+            <span className="font-medium">PrintCrawler</span>
           </div>
           <p className="text-zinc-500 text-sm">
-            © 2026 PrintFinder. Built for makers.
+            © 2026 PrintCrawler. Built for makers.
           </p>
         </div>
       </footer>

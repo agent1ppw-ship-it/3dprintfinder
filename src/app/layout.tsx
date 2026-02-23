@@ -6,7 +6,7 @@ import { AuthProvider } from "@/lib/auth-context";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "PrintFinder - Find Profitable Products to Print & Sell",
+  title: "PrintCrawler - Find Profitable Products to Print & Sell",
   description: "Discover what's selling on eBay and Etsy. Research 3D printed products, analyze demand, and find your next bestseller.",
 };
 
