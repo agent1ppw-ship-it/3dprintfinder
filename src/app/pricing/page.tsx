@@ -16,6 +16,11 @@ export default function PricingPage() {
       return;
     }
 
+    if (!priceId) {
+      router.push("/dashboard");
+      return;
+    }
+
     setProcessing(priceId);
 
     try {
@@ -30,6 +35,8 @@ export default function PricingPage() {
 
       if (data.url) {
         window.location.href = data.url;
+      } else if (data.error) {
+        alert("Stripe is not configured. Please contact support or try again later.");
       } else {
         alert("Unable to create checkout session. Please try again.");
       }

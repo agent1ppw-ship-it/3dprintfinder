@@ -7,9 +7,20 @@ export async function POST(request: NextRequest) {
   try {
     const { priceId, userId } = await request.json();
 
+    // Check if Stripe is configured
+    if (!process.env.STRIPE_SECRET_KEY) {
+      console.error("Stripe secret key not configured");
+      return NextResponse.json(
+        { error: "Payment system not configured. Please contact support." },
+        { status: 503 }
+      );
+    }
+
     if (!priceId) {
       return NextResponse.json({ error: "No price selected" }, { status: 400 });
     }
+
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
     // Price IDs - replace with your actual Stripe price IDs
     const prices: Record<string, { name: string; price: number }> = {
@@ -34,7 +45,7 @@ export async function POST(request: NextRequest) {
               name: `PrintCrawler - ${selectedPrice.name}`,
               description: `PrintCrawler ${selectedPrice.name} subscription`,
             },
-            unit_amount: selectedPrice.price * 100, // Convert to cents
+            unit_amount: selectedPrice.price * 100,
             recurring: {
               interval: "month",
             },
@@ -54,7 +65,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Stripe error:", error);
     return NextResponse.json(
-      { error: "Failed to create checkout session" },
+      { error: "Payment system error. Please try again later." },
       { status: 500 }
     );
   }
