@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
   try {
-    const { priceId, userId } = await request.json();
+    const { priceId } = await request.json();
 
     // Check if Stripe is configured
     if (!process.env.STRIPE_SECRET_KEY) {
       return NextResponse.json(
-        { error: "Payment system not configured. Please add STRIPE_SECRET_KEY to enable payments." },
+        { error: "Stripe is not configured. Please add STRIPE_SECRET_KEY to your environment variables in Vercel." },
         { status: 503 }
       );
     }
@@ -15,10 +15,6 @@ export async function POST(request: NextRequest) {
     if (!priceId) {
       return NextResponse.json({ error: "No price selected" }, { status: 400 });
     }
-
-    // Dynamic import to avoid build-time issues
-    const Stripe = (await import("stripe")).default;
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
     const prices: Record<string, { name: string; price: number }> = {
       "price_pro_monthly": { name: "Pro Monthly", price: 29 },
@@ -29,6 +25,10 @@ export async function POST(request: NextRequest) {
     if (!selectedPrice) {
       return NextResponse.json({ error: "Invalid price" }, { status: 400 });
     }
+
+    // Use require instead of import to avoid static analysis
+    const Stripe = require("stripe");
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Checkout error:", error);
     return NextResponse.json(
-      { error: "Payment system error. Please try again later." },
+      { error: "Checkout failed. Please try again later." },
       { status: 500 }
     );
   }
