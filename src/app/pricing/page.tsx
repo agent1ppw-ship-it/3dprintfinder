@@ -1,164 +1,201 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/lib/auth-context";
-import { Loader2, Check } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 
 export default function PricingPage() {
-  const { user, loading } = useAuth();
-  const router = useRouter();
-  const [processing, setProcessing] = useState<string | null>(null);
+  const [loading, setLoading] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [canceled, setCanceled] = useState(false);
 
-  const handleSubscribe = async (priceId: string) => {
-    if (!user) {
-      router.push("/login");
-      return;
-    }
-
-    if (!priceId) {
-      router.push("/dashboard");
-      return;
-    }
-
-    setProcessing(priceId);
-
+  const handleSubscribe = async (plan: string) => {
+    setLoading(plan);
     try {
-      // Call API to create checkout session
-      const res = await fetch("/api/create-checkout-session", {
+      const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ priceId, userId: user.id }),
+        body: JSON.stringify({ plan }),
       });
-
       const data = await res.json();
-
       if (data.url) {
         window.location.href = data.url;
-      } else if (data.error) {
-        alert("Stripe is not configured. Please contact support or try again later.");
       } else {
-        alert("Unable to create checkout session. Please try again.");
+        alert("Failed to start checkout. Please try again.");
       }
     } catch (error) {
       console.error("Checkout error:", error);
       alert("Something went wrong. Please try again.");
     } finally {
-      setProcessing(null);
+      setLoading(null);
     }
   };
+
+  // Check for success/canceled in URL
+  if (typeof window !== "undefined") {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("success") === "true" && !success) {
+      setSuccess(true);
+    }
+    if (params.get("canceled") === "true" && !canceled) {
+      setCanceled(true);
+    }
+  }
 
   const plans = [
     {
       name: "Free",
-      price: 0,
-      priceId: "",
+      price: "$0",
+      period: "forever",
+      description: "Perfect for getting started",
       features: [
-        "Search 3D printed products",
-        "View Amazon listings",
-        "Save favorites",
-        "Basic market research",
+        "Basic 3D print searches",
+        "5 searches per day",
+        "Amazon results only",
+        "Community support",
       ],
+      cta: "Get Started",
+      popular: false,
     },
     {
       name: "Pro",
-      price: 30,
-      priceId: "price_pro_monthly",
+      price: "$12.99",
+      period: "per month",
+      description: "For serious hobbyists",
       features: [
-        "Everything in Free",
         "Unlimited searches",
-        "Export to CSV",
+        "All marketplaces (Amazon, eBay, Etsy)",
+        "Google Trends data",
+        "Price alerts",
         "Priority support",
-        "Advanced analytics",
-        "Competitor tracking",
       ],
+      cta: "Start Pro Trial",
+      popular: true,
     },
     {
       name: "Business",
-      price: 99,
-      priceId: "price_business_monthly",
+      price: "$49.99",
+      period: "per month",
+      description: "For resellers and makers",
       features: [
         "Everything in Pro",
+        "Sales data estimates",
+        "Bulk search exports",
         "API access",
-        "White label reports",
-        "Team collaboration",
-        "Custom integrations",
+        "White-label reports",
         "Dedicated support",
       ],
+      cta: "Start Business Trial",
+      popular: false,
     },
   ];
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-[#22c55e] animate-spin" />
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-[#0a0a0a]">
+    <div className="min-h-screen bg-[#0a0a0a] text-white">
+      {/* Header */}
       <header className="border-b border-zinc-800">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-          <button onClick={() => router.push("/dashboard")} className="font-bold text-xl">
-            PrintCrawler
-          </button>
+          <a href="/" className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-[#22c55e] rounded-lg flex items-center justify-center">
+              <span className="text-black font-bold text-lg">3</span>
+            </div>
+            <span className="font-bold text-xl">3DPrintFinder</span>
+          </a>
+          <nav className="flex items-center gap-6">
+            <a href="/" className="text-zinc-400 hover:text-white transition">Home</a>
+            <a href="/pricing" className="text-[#22c55e] font-medium">Pricing</a>
+          </nav>
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-16">
+        {/* Success Message */}
+        {success && (
+          <div className="bg-green-900/30 border border-green-500 rounded-xl p-6 mb-8 text-center">
+            <h2 className="text-2xl font-bold text-green-400 mb-2">Welcome to 3DPrintFinder Pro!</h2>
+            <p className="text-zinc-300">Your subscription is now active. Enjoy unlimited searches!</p>
+          </div>
+        )}
+
+        {/* Canceled Message */}
+        {canceled && (
+          <div className="bg-yellow-900/30 border border-yellow-500 rounded-xl p-6 mb-8 text-center">
+            <p className="text-yellow-400">Checkout was canceled. No charges were made.</p>
+          </div>
+        )}
+
+        {/* Title */}
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold mb-4">Simple, Transparent Pricing</h1>
           <p className="text-zinc-400 text-lg">Choose the plan that fits your needs</p>
         </div>
 
+        {/* Pricing Cards */}
         <div className="grid md:grid-cols-3 gap-8">
           {plans.map((plan) => (
             <div
               key={plan.name}
-              className={`bg-zinc-900 border rounded-2xl p-8 ${
-                plan.name === "Pro" ? "border-[#22c55e] ring-1 ring-[#22c55e]" : "border-zinc-800"
+              className={`relative bg-zinc-900 border rounded-2xl p-8 ${
+                plan.popular
+                  ? "border-[#22c55e] shadow-lg shadow-green-900/20"
+                  : "border-zinc-800"
               }`}
             >
-              {plan.name === "Pro" && (
-                <span className="bg-[#22c55e] text-black text-xs font-bold px-3 py-1 rounded-full">
-                  MOST POPULAR
-                </span>
+              {plan.popular && (
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                  <span className="bg-[#22c55e] text-black text-sm font-medium px-3 py-1 rounded-full">
+                    Most Popular
+                  </span>
+                </div>
               )}
-              <h2 className="text-2xl font-bold mt-4">{plan.name}</h2>
-              <div className="mt-4 mb-6">
-                <span className="text-4xl font-bold">${plan.price}</span>
-                {plan.price > 0 && <span className="text-zinc-400">/month</span>}
+
+              <div className="text-center mb-6">
+                <h3 className="text-xl font-bold mb-2">{plan.name}</h3>
+                <div className="flex items-baseline justify-center gap-1">
+                  <span className="text-4xl font-bold">{plan.price}</span>
+                  <span className="text-zinc-500">/{plan.period}</span>
+                </div>
+                <p className="text-zinc-400 text-sm mt-2">{plan.description}</p>
               </div>
+
               <ul className="space-y-3 mb-8">
                 {plan.features.map((feature) => (
                   <li key={feature} className="flex items-center gap-3 text-zinc-300">
-                    <Check className="w-5 h-5 text-[#22c55e]" />
+                    <Check className="w-5 h-5 text-[#22c55e] flex-shrink-0" />
                     {feature}
                   </li>
                 ))}
               </ul>
+
               <button
-                onClick={() => handleSubscribe(plan.priceId)}
-                disabled={processing === plan.priceId || plan.price === 0}
-                className={`w-full py-3 px-6 rounded-lg font-medium transition ${
-                  plan.price === 0
-                    ? "bg-zinc-800 text-white hover:bg-zinc-700"
-                    : plan.name === "Pro"
+                onClick={() => handleSubscribe(plan.name.toLowerCase())}
+                disabled={loading === plan.name.toLowerCase() || plan.price === "$0"}
+                className={`w-full py-3 rounded-xl font-medium transition ${
+                  plan.popular
                     ? "bg-[#22c55e] text-black hover:bg-[#16a34a]"
-                    : "bg-zinc-100 text-black hover:bg-white"
-                } disabled:opacity50`}
+                    : "bg-zinc-800 text-white hover:bg-zinc-700"
+                } disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2`}
               >
-                {processing === plan.priceId ? (
-                  <Loader2 className="w-5 h-5 animate-spin mx-auto" />
-                ) : plan.price === 0 ? (
-                  "Get Started Free"
+                {loading === plan.name.toLowerCase() ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Processing...
+                  </>
+                ) : plan.price === "$0" ? (
+                  "Current Plan"
                 ) : (
-                  `Subscribe for $${plan.price}/mo`
+                  plan.cta
                 )}
               </button>
             </div>
           ))}
+        </div>
+
+        {/* Trust badges */}
+        <div className="mt-16 text-center">
+          <p className="text-zinc-500 mb-4">🔒 Secure payments powered by Stripe</p>
+          <p className="text-zinc-600 text-sm">
+            Cancel anytime. No questions asked.
+          </p>
         </div>
       </main>
     </div>
