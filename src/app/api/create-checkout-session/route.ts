@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     }
 
     const prices: Record<string, { name: string; price: number }> = {
-      "price_pro_monthly": { name: "Pro Monthly", price: 12.99 },
+      "price_pro_monthly": { name: "Pro Monthly", price: 30 },
       "price_business_monthly": { name: "Business Monthly", price: 99 },
     };
 

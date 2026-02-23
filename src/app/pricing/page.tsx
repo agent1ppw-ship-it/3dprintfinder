@@ -62,7 +62,7 @@ export default function PricingPage() {
     },
     {
       name: "Pro",
-      price: 12.99,
+      price: 30,
       priceId: "price_pro_monthly",
       features: [
         "Everything in Free",
