@@ -5,9 +5,70 @@ interface SearchItem {
   title: string;
   price: number;
   currency: string;
-  imageUrl: string;
+  imageUrl?: string;
   itemUrl: string;
-  platform: "ebay" | "etsy";
+  platform: "amazon" | "ebay" | "etsy";
+}
+
+// Filter to check if title is valid
+function isValidTitle(title: string): boolean {
+  if (/^[A-Z0-9]{6,}$/i.test(title)) return false;
+  if (/^\$[A-Za-z0-9]{5,}/.test(title)) return false;
+  if (/^[a-z]{10,}$/i.test(title) && !title.includes(' ')) return false;
+  if (/^[^a-zA-Z]+$/.test(title)) return false;
+  return true;
+}
+
+// Amazon scraping
+async function searchAmazon(query: string): Promise<SearchItem[]> {
+  const results: SearchItem[] = [];
+  
+  try {
+    const res = await fetch(
+      `https://www.amazon.com/s?k=${encodeURIComponent(query + " 3D printed")}`,
+      {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Accept': 'text/html',
+        },
+        signal: AbortSignal.timeout(10000)
+      }
+    );
+    
+    if (res.ok) {
+      const html = await res.text();
+      const seen = new Set<string>();
+      
+      // Extract product titles and images
+      const pattern = /<img[^>]*data-a-dynamic-image[^>]*src="(https:\/\/m\.media-amazon\.com[^"]+)"[^>]*alt="([^"]{10,100})"[^>]*>/gi;
+      let match;
+      
+      while ((match = pattern.exec(html)) !== null && results.length < 15) {
+        const image = match[1].replace(/\\u0026/g, '&');
+        const title = match[2].replace(/&quot;/g, '"').trim();
+        
+        if (title.length > 15 && isValidTitle(title)) {
+          const key = title.substring(0, 20).toLowerCase();
+          if (!seen.has(key)) {
+            seen.add(key);
+            results.push({
+              id: `amazon-${results.length}`,
+              title: title.substring(0, 100),
+              price: 0,
+              currency: 'USD',
+              imageUrl: image.replace('._AC_US40_', '._AC_US200_'),
+              itemUrl: `https://www.amazon.com/s?k=${encodeURIComponent(title)}`,
+              platform: 'amazon',
+            });
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Amazon scrape error:', e);
+  }
+  
+  return results;
 }
 
 // eBay Browse API
@@ -15,12 +76,10 @@ async function searchEbay(query: string): Promise<SearchItem[]> {
   const appId = process.env.EBAY_APP_ID;
   
   if (!appId) {
-    // Return mock data if no API key
     return generateMockResults("ebay", query);
   }
 
   try {
-    // Get OAuth token
     const tokenRes = await fetch('https://api.ebay.com/identity/v1/oauth2/token', {
       method: 'POST',
       headers: {
@@ -37,7 +96,6 @@ async function searchEbay(query: string): Promise<SearchItem[]> {
       return generateMockResults("ebay", query);
     }
 
-    // Search eBay
     const searchRes = await fetch(
       `https://api.ebay.com/browse/v1/item_summary/search?q=${encodeURIComponent(query + " 3D printed")}&limit=20`,
       {
@@ -101,21 +159,15 @@ async function searchEtsy(query: string): Promise<SearchItem[]> {
   }
 }
 
-// Mock data for demo purposes
+// Mock data
 function generateMockResults(platform: "ebay" | "etsy", query: string): SearchItem[] {
   const mockProducts = [
     { title: `3D Printed ${query} RC Car Body Shell`, price: 45.99 },
-    { title: `Custom 3D Printed ${query} Model Train Parts`, price: 29.99 },
-    { title: `Handcrafted 3D Printed ${query} - Custom Colors`, price: 35.00 },
+    { title: `Custom 3D Printed ${query} Model`, price: 29.99 },
+    { title: `Handcrafted 3D Printed ${query}`, price: 35.00 },
     { title: `3D Printed ${query} Accessory Set`, price: 24.99 },
     { title: `Unique ${query} - 3D Printed to Order`, price: 55.00 },
     { title: `Customizable 3D Printed ${query}`, price: 19.99 },
-    { title: `Premium ${query} 3D Printed - Various Sizes`, price: 39.99 },
-    { title: `3D Printed ${query} for Hobbyists`, price: 15.99 },
-    { title: `Artisan ${query} - 3D Printed Design`, price: 42.50 },
-    { title: `Limited Edition 3D Printed ${query}`, price: 65.00 },
-    { title: `3D Printed ${query} Replacement Parts`, price: 12.99 },
-    { title: `Personalized ${query} - 3D Printed`, price: 28.00 },
   ];
 
   return mockProducts.map((product, index) => ({
@@ -143,6 +195,10 @@ export async function GET(request: NextRequest) {
   try {
     const results: SearchItem[] = [];
     
+    // Always include Amazon
+    const amazonResults = await searchAmazon(query);
+    results.push(...amazonResults);
+    
     if (platform === 'all' || platform === 'ebay') {
       const ebayResults = await searchEbay(query);
       results.push(...ebayResults);
@@ -156,9 +212,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ results });
   } catch (error) {
     console.error('Search error:', error);
-    return NextResponse.json(
-      { error: 'Search failed', results: [] },
-      { status: 500 }
-    );
+    return NextResponse.json({ results: [] });
   }
 }
