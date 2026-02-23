@@ -304,7 +304,7 @@ export default function Dashboard() {
               <div className="w-8 h-8 bg-[#22c55e] rounded-lg flex items-center justify-center">
                 <span className="text-black font-bold text-lg">3</span>
               </div>
-              <span className="font-bold text-xl">3D Print Finder</span>
+              <span className="font-bold text-xl">PrintFinder</span>
             </a>
           </div>
           <div className="flex items-center gap-4">
