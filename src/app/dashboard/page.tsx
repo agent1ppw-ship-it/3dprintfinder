@@ -321,9 +321,9 @@ export default function Dashboard() {
               <LogOut className="w-4 h-4" />
               Sign Out
             </button>
-            <button className="bg-[#22c55e] text-black px-4 py-2 rounded-lg font-medium text-sm">
+            <a href="/pricing" className="bg-[#22c55e] text-black px-4 py-2 rounded-lg font-medium text-sm">
               Upgrade to Pro
-            </button>
+            </a>
           </div>
         </div>
       </header>
